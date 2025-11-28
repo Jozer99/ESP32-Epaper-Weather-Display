@@ -16,7 +16,7 @@ My code is user friendly in two ways:
 2.  I personally find the simplified display of my project provides just the right amount of information about the current and upcoming weather, rather than too much or too little.
 
 <h1>Installation</h1>
-This code can be flashed to the the Lilygo module without modification.  It should be flashed using PlatformIO or compatible platform (such as Visual Studio Code with the PlatformIO plugin).  The included configuration will means that all that is required is to load up the code in your development environment, plug in the Lilygo board by USB, and press the "Upload" button.  
+This code can be flashed to the the Lilygo module without modification.  It should be flashed using PlatformIO or compatible platform (such as Visual Studio Code with the PlatformIO plugin).  The included configuration file means that all that is required is to clone the git repo, load up the code in your development environment, plug in the Lilygo board by USB, and press the "Upload" button.  
 
 <h1>Use</h1>
 Once installed, the weather display must be configured.  This is done by putting the module into "setup mode" by pressing a special combination of buttons.  I recommend doing this while the module is fully charged (if it has a battery installed) or while it is plugged into USB power, as setup mode has considerable power draw due to wifi.  
