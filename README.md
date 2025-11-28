@@ -1,18 +1,19 @@
 <h1>Introduction</h1>
 This project began with the goal to create a user friendly weather display using the Lilygo T5 EPD ESP32 development platform.  Several existing projects go partway to addressing this goal, and I borrowed liberally from them, in particular:
+<ul>
+<li>https://github.com/CybDis/Lilygo-T5-4.7-WeatherStation-with-HomeAssistant
+Served as the basis of the code upon which I built.  </li>
 
-https://github.com/CybDis/Lilygo-T5-4.7-WeatherStation-with-HomeAssistant
-Served as the basis of the code upon which I built.  
+<li>https://github.com/G6EJD/LilyGo-EPD-47-OWM-Weather-Display
+Which seems no longer to exist, was the first developer of a weather display for this platform.</li>
 
-https://github.com/G6EJD/LilyGo-EPD-47-OWM-Weather-Display
-Which seems no longer to exist, was the first developer of a weather display for this platform.
-
-https://github.com/lmarzen/esp32-weather-epd
-Served as aesethic inspiration, although I do not believe I borrowed a single line of code from this project, it is worthy of mention.  
+<li>https://github.com/lmarzen/esp32-weather-epd
+Served as aesethic inspiration, although I do not believe I borrowed a single line of code from this project, it is worthy of mention.  </li>
+</ul>
 
 My code is user friendly in two ways:
-1.  The code can be flashed unmodified to the ESP32 platform.  User settings can be changed once the code is uploaded, rather than requiring modification of the code in the IDE.
-2.  I personally find the simplified display of my project provides just the right amount of information about the current and upcoming weather, rather than too much or two little.
+1.  The code can be flashed unmodified to the ESP32 platform.  User settings can be changed once the code is installed, rather than requiring modification of the code in the IDE.
+2.  I personally find the simplified display of my project provides just the right amount of information about the current and upcoming weather, rather than too much or too little.
 
 <h1>Installation</h1>
 This code can be flashed to the the Lilygo module without modification.  It should be flashed using PlatformIO or compatible platform (such as Visual Studio Code with the PlatformIO plugin).  The included configuration will means that all that is required is to load up the code in your development environment, plug in the Lilygo board by USB, and press the "Upload" button.  
@@ -20,19 +21,22 @@ This code can be flashed to the the Lilygo module without modification.  It shou
 <h1>Use</h1>
 Once installed, the weather display must be configured.  This is done by putting the module into "setup mode" by pressing a special combination of buttons.  I recommend doing this while the module is fully charged (if it has a battery installed) or while it is plugged into USB power, as setup mode has considerable power draw due to wifi.  
 
+
 To enter setup mode, hold buttons 3 and 5 while tapping button 1 briefly.  After a few seconds, the unit will boot into setup mode and display directions on screen.  All buttons can be released at this point.  
 <img width="1187" height="1000" alt="Buttons" src="https://github.com/user-attachments/assets/f9a20d47-d0b0-4860-8013-18b4a0e16261" />
 
 During setup mode, the unit acts as a Wifi Access Point with the SSID "ESP Weather Station".  Connect to this access point with a computer, tablet, or smartphone, and go to the URL <b>192.168.4.1</b> in a web browser.  This will display the configuration page where you can fill in the correct settings:
 
-<b>Wifi Network</b> - The weather station must connect to the internet in order to collect weather forecast data.  Provide SSID of your wifi network for it to connect to.  
-<b>Wifi Password</b> - Provide the password for your wifi network.  
-<b>OpenWeatherMap API Key</b> - Weather data is provided by OpenWeatherMap, which provides free forecast data.  You will need to establish an account at https://openweathermap.org/ and request an API key through their website.  The API is free for up to 1000 calls a day.  With the default configuration, the unit makes only 24 API calls per day, so this is plenty.  
-<b>Location String</b> - This is the name of the location that weather will be provided for.  The recommended format is "City, State, Country" or similar.  You can use the search bar on the homepage of https://openweathermap.org/ to determine the appropriate location string if you are unsure.  
-<b>Units</b> - This will switch between Imperial (US) and Metric (everywhere else) units for displaying weather information.  
-<b>Update Interval</b> - This sets the frequency at which the weather display is updated.  The default is every 60 minutes.  Increasing the frequency will increase battery usage and API calls.  
-<b>Start Time</b> - This determines what time of day the unit starts displaying updates.  For instance, setting this to 6AM means the unit will not fetch and display updates between midnight and 6AM.  This increases battery life.  The default value is midnight.  
-<b>Stop Time</b> - This determines what time of day the unit stops displaying updates.  For instance, setting this to 8PM means the unit will not fetch and display updates between 8PM and midnight.  This increases battery life.  The default value is midnight.  
+<ul>
+<li><b>Wifi Network</b> - The weather station must connect to the internet in order to collect weather forecast data.  Provide SSID of your wifi network for it to connect to.  </li>
+<li><b>Wifi Password</b> - Provide the password for your wifi network.  </li>
+<li><b>OpenWeatherMap API Key</b> - Weather data is provided by OpenWeatherMap, which provides free forecast data.  You will need to establish an account at https://openweathermap.org/ and request an API key through their website.  The API is free for up to 1000 calls a day.  With the default configuration, the unit makes only 24 API calls per day, so this is plenty.  </li>
+<li><b>Location String</b> - This is the name of the location that weather will be provided for.  The recommended format is "City, State, Country" or similar.  You can use the search bar on the homepage of https://openweathermap.org/ to determine the appropriate location string if you are unsure. </li> 
+<li><b>Units</b> - This will switch between Imperial (US) and Metric (everywhere else) units for displaying weather information.  </li>
+<li><b>Update Interval</b> - This sets the frequency at which the weather display is updated.  The default is every 60 minutes.  Increasing the frequency will increase battery usage and API calls.  </li>
+<li><b>Start Time</b> - This determines what time of day the unit starts displaying updates.  For instance, setting this to 6AM means the unit will not fetch and display updates between midnight and 6AM.  This increases battery life.  The default value is midnight.  </li>
+<li><b>Stop Time</b> - This determines what time of day the unit stops displaying updates.  For instance, setting this to 8PM means the unit will not fetch and display updates between 8PM and midnight.  This increases battery life.  The default value is midnight.  </li>
+</ul>
 
 Once you have entered your settings, click the "Save and Reboot" button on the webpage.  The unit will take a few seconds to reboot, then should start displaying weather data.  Any problems will be indicated on screen.  
 
