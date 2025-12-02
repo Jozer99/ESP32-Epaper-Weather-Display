@@ -71,6 +71,7 @@ uint8_t *framebuffer;
 String  Time_str = "--:--:--";
 String  Date_str = "-- --- ----";
 int     wifi_signal, CurrentHour = 0, CurrentMin = 0, CurrentSec = 0, EventCnt = 0, vref = 1100;
+int     globalTimezoneOffset = 0;  // Timezone offset in seconds (positive = east of UTC)
 
 // RTC memory variable to track if low battery screen has been shown
 // This persists across deep sleep
@@ -121,36 +122,29 @@ void BeginSleep() {
  * @param timezoneOffset Timezone offset in seconds from UTC (positive = east of UTC, negative = west of UTC)
  */
 void SetRTCTimeFromAPI(time_t apiTime, int timezoneOffset) {
-  // Store UTC time in RTC - localtime() will handle timezone conversion
+  // Store UTC time in RTC
   struct timeval tv;
   tv.tv_sec = apiTime;
   tv.tv_usec = 0;
   settimeofday(&tv, NULL);
   
-  // Construct timezone string from API offset (format: GMT+5 or GMT-5)
-  // Convert seconds to hours (offset is in seconds, POSIX format uses hours)
-  int offsetHours = timezoneOffset / 3600;
-  char tzString[16];
-  if (offsetHours >= 0) {
-    snprintf(tzString, sizeof(tzString), "GMT+%d", offsetHours);
-  } else {
-    snprintf(tzString, sizeof(tzString), "GMT%d", offsetHours); // Negative sign included
-  }
-  
-  // Configure timezone for automatic UTC->local conversion
-  setenv("TZ", tzString, 1);
-  tzset();
+  // Store timezone offset globally for manual conversion
+  globalTimezoneOffset = timezoneOffset;
   
   Serial.println("RTC set from API time (UTC)");
-  time_t now = time(NULL);
-  struct tm *timeinfo = localtime(&now);
-  Serial.print("Current local time: ");
-  Serial.println(timeinfo, "%a %b %d %Y   %H:%M:%S");
-  Serial.print("Timezone from API: ");
-  Serial.print(tzString);
-  Serial.print(" (offset: ");
+  Serial.print("Timezone offset: ");
   Serial.print(timezoneOffset / 3600.0);
-  Serial.println(" hours)");
+  Serial.println(" hours");
+  
+  // Verify time calculation
+  time_t now = time(NULL);
+  struct tm *utc_tm = gmtime(&now);
+  time_t local_time = now + timezoneOffset;
+  struct tm *local_tm = gmtime(&local_time);
+  Serial.print("UTC time: ");
+  Serial.println(utc_tm, "%a %b %d %Y   %H:%M:%S");
+  Serial.print("Local time: ");
+  Serial.println(local_tm, "%a %b %d %Y   %H:%M:%S");
 }
 
 /**
@@ -680,7 +674,10 @@ boolean UpdateLocalTime() {
     return false;
   }
   
-  struct tm *timeinfo = localtime(&now);
+  // Calculate local time by adding timezone offset to UTC time
+  // timezoneOffset: positive = east of UTC (ahead), negative = west of UTC (behind)
+  time_t local_time = now + globalTimezoneOffset;
+  struct tm *timeinfo = gmtime(&local_time);  // Use gmtime since we've already applied offset
   if (timeinfo == NULL) {
     Serial.println("Failed to get time from RTC");
     return false;
