@@ -37,6 +37,7 @@
 // External variables from main.ino
 extern uint8_t *framebuffer;
 extern GFXfont currentFont;
+extern int globalTimezoneOffset;  // Timezone offset in seconds (positive = east of UTC)
 
 // Helper drawing functions - wrappers around EPD driver functions
 void fillCircle(int x, int y, int r, uint8_t color) {
@@ -848,8 +849,11 @@ void drawOutlookGraph(Forecast_record_type *forecast, int num_forecasts, tm *tim
     int idx = validForecastIndices[i];
     int x = graphX + (i * graphWidth / forecastCount);
     char timeBuffer[12] = {};
-    time_t ts = forecast[idx].Dt;
-    struct tm *t = localtime(&ts);
+    time_t ts = forecast[idx].Dt;  // UTC timestamp from API
+    // Convert UTC to local time by adding timezone offset
+    // globalTimezoneOffset: positive = east of UTC (ahead), negative = west of UTC (behind)
+    time_t local_ts = ts + globalTimezoneOffset;
+    struct tm *t = gmtime(&local_ts);  // Use gmtime since we've already applied offset
     
     if (String(settings.Units) == "M") {
       strftime(timeBuffer, sizeof(timeBuffer), "%H", t); // 24-hour format
