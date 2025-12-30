@@ -58,6 +58,7 @@ This code is by no means finished.  Here are a list of things I would like to ad
 <li>The battery percentage tracking code is OK, not great.  The voltage detection seems to be pretty good on my unit, but the percent reading leaves something to be desired.  Fully fixing this will require a deep dive into lithium battery technology.  </li>
 <li>This code was written for the earlier "V3" revision of the T5 4.7 inch development kit.  Judging from online pictures, Lilygo has released a newer revision of the kit, mainly distinguishable by having only three hardware buttons instead of five.  I have not tested the code on the newer version (as I do not have one) but I suspect some minor modifications will be required in order to make it work properly.</li>
 <li>Optimization and clean up; I cut down on the amount of internet requests the unit makes compared to previous projects, but I suspect further optimization is possible.  Almost all power consumption occurs while the unit is awake for an update, so optimizing that code more would result in increased battery life.</li>
+<li>Fonts - This project seems to use standard Adafruit GFX style fonts, but trying to display any fonts other than the ones included with the original project results in crashing.  It would be nice to get to the bottom of this so that I could lighten up the font weights a bit, and perhaps make a few important pieces of information larger on screen than is currently possible.</li>
 </ul>
 
 See my blog post here: https://www.jozerworx.com/esp32-epaper-weather-station/
