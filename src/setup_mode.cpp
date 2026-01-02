@@ -26,21 +26,37 @@ int validateAndGeocodeLocation() {
   
   // If coordinates are valid (not -181), no geocoding needed
   if (lat > -180.0 && lat < 180.0 && lon > -180.0 && lon < 180.0) {
-    Serial.println("Location coordinates are valid. No geocoding needed.");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("Location coordinates are valid. No geocoding needed.");
+    }
+#endif
     return 0; // Success
   }
   
-  Serial.println("Location coordinates are invalid. Attempting geocoding...");
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.println("Location coordinates are invalid. Attempting geocoding...");
+  }
+#endif
   
   // Check if location string is empty
   if (strlen(settings.City) == 0) {
-    Serial.println("Error: Location string is empty. Cannot geocode.");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("Error: Location string is empty. Cannot geocode.");
+    }
+#endif
     return 2; // Other error (invalid location)
   }
   
   // Check if API key is set
   if (strlen(settings.apikey) == 0) {
-    Serial.println("Error: API key is not set. Cannot geocode.");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("Error: API key is not set. Cannot geocode.");
+    }
+#endif
     return 2; // Other error (missing API key, but not invalid API key)
   }
   
@@ -48,12 +64,20 @@ int validateAndGeocodeLocation() {
   if (WiFi.status() != WL_CONNECTED) {
     // Check if WiFi SSID is set
     if (strlen(settings.ssid) == 0) {
-      Serial.println("Error: WiFi SSID is not set. Cannot connect for geocoding.");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("Error: WiFi SSID is not set. Cannot connect for geocoding.");
+      }
+#endif
       return false;
     }
     
-    Serial.print("Connecting to WiFi: ");
-    Serial.println(settings.ssid);
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.print("Connecting to WiFi: ");
+      Serial.println(settings.ssid);
+    }
+#endif
     
     WiFi.mode(WIFI_STA);
     WiFi.begin(settings.ssid, settings.password);
@@ -61,18 +85,34 @@ int validateAndGeocodeLocation() {
     int attempts = 0;
     while (WiFi.status() != WL_CONNECTED && attempts < 20) {
       delay(500);
-      Serial.print(".");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.print(".");
+      }
+#endif
       attempts++;
     }
-    Serial.println();
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println();
+    }
+#endif
     
     if (WiFi.status() != WL_CONNECTED) {
-      Serial.println("Error: Failed to connect to WiFi for geocoding.");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("Error: Failed to connect to WiFi for geocoding.");
+      }
+#endif
       return 2; // Other error
     }
     
-    Serial.print("WiFi connected. IP address: ");
-    Serial.println(WiFi.localIP());
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.print("WiFi connected. IP address: ");
+      Serial.println(WiFi.localIP());
+    }
+#endif
   }
   
   // Build geocoding API request
@@ -86,24 +126,36 @@ int validateAndGeocodeLocation() {
   
   String uri = "/geo/1.0/direct?q=" + locationQuery + "&limit=1&appid=" + String(settings.apikey);
   
-  Serial.print("Geocoding API request: ");
-  Serial.print("api.openweathermap.org");
-  Serial.println(uri);
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.print("Geocoding API request: ");
+    Serial.print("api.openweathermap.org");
+    Serial.println(uri);
+  }
+#endif
   
   http.begin(client, "api.openweathermap.org", 80, uri);
   int httpCode = http.GET();
   
   if (httpCode == HTTP_CODE_UNAUTHORIZED || httpCode == 401) {
     // API key is invalid
-    Serial.print("Geocoding API error: Invalid API key. HTTP code: ");
-    Serial.println(httpCode);
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.print("Geocoding API error: Invalid API key. HTTP code: ");
+      Serial.println(httpCode);
+    }
+#endif
     http.end();
     return 1; // API key invalid
   }
   
   if (httpCode != HTTP_CODE_OK) {
-    Serial.print("Geocoding API error. HTTP code: ");
-    Serial.println(httpCode);
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.print("Geocoding API error. HTTP code: ");
+      Serial.println(httpCode);
+    }
+#endif
     http.end();
     return 2; // Other error
   }
@@ -115,21 +167,33 @@ int validateAndGeocodeLocation() {
   http.end();
   
   if (error) {
-    Serial.print("Failed to parse geocoding JSON: ");
-    Serial.println(error.c_str());
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.print("Failed to parse geocoding JSON: ");
+      Serial.println(error.c_str());
+    }
+#endif
     return 2; // Other error
   }
   
   // Check if response is an array with at least one result
   if (!doc.is<JsonArray>() || doc.size() == 0) {
-    Serial.println("Geocoding API returned no results.");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("Geocoding API returned no results.");
+    }
+#endif
     return 2; // Other error (invalid location)
   }
   
   // Get first result
   JsonObject firstResult = doc[0];
   if (!firstResult.containsKey("lat") || !firstResult.containsKey("lon")) {
-    Serial.println("Geocoding API response missing lat/lon fields.");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("Geocoding API response missing lat/lon fields.");
+    }
+#endif
     return 2; // Other error
   }
   
@@ -139,7 +203,11 @@ int validateAndGeocodeLocation() {
   // Validate geocoded coordinates
   if (geocodedLat < -90.0 || geocodedLat > 90.0 || 
       geocodedLon < -180.0 || geocodedLon > 180.0) {
-    Serial.println("Geocoding API returned invalid coordinates.");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("Geocoding API returned invalid coordinates.");
+    }
+#endif
     return 2; // Other error
   }
   
@@ -155,10 +223,14 @@ int validateAndGeocodeLocation() {
   // Save to EEPROM
   saveSettings();
   
-  Serial.print("Geocoding successful. Coordinates: ");
-  Serial.print(settings.Latitude);
-  Serial.print(", ");
-  Serial.println(settings.Longitude);
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.print("Geocoding successful. Coordinates: ");
+    Serial.print(settings.Latitude);
+    Serial.print(", ");
+    Serial.println(settings.Longitude);
+  }
+#endif
   
   return 0; // Success
 }
@@ -173,31 +245,47 @@ void runSetupMode() {
   const char* ap_ssid = "ESP Weather Station";
   const char* ap_password = "";  // No password
   
-  Serial.print("Setting AP (Access Point)…");
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.print("Setting AP (Access Point)…");
+  }
+#endif
   WiFi.softAP(ap_ssid, ap_password);
   
   IPAddress IP = WiFi.softAPIP();
-  Serial.print("AP IP address: ");
-  Serial.println(IP);
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.print("AP IP address: ");
+    Serial.println(IP);
+    Serial.println("Web server started. Connect to WiFi 'ESP Weather Station' and navigate to http://192.168.4.1");
+  }
+#endif
   
   // Start web server on port 80
   WiFiServer server(80);
   server.begin();
-  Serial.println("Web server started. Connect to WiFi 'ESP Weather Station' and navigate to http://192.168.4.1");
   
   // Main loop to handle web server requests
   while (true) {
     WiFiClient client = server.available();   // Listen for incoming clients
     
     if (client) {                             // If a new client connects,
-      Serial.println("New Client.");          // print a message out in the serial port
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("New Client.");          // print a message out in the serial port
+      }
+#endif
       String currentLine = "";                // make a String to hold incoming data from the client
       String header = "";                     // Variable to store the HTTP request
       
       while (client.connected()) {            // loop while the client's connected
         if (client.available()) {             // if there's bytes to read from the client,
           char c = client.read();             // read a byte, then
-          Serial.write(c);                    // print it out the serial monitor
+#if DEBUG_LEVEL
+          if (Serial && Serial.availableForWrite() > 0) {
+            Serial.write(c);                    // print it out the serial monitor
+          }
+#endif
           header += c;
           if (c == '\n') {                    // if the byte is a newline character
             // if the current line is blank, you got two newline characters in a row.
@@ -215,8 +303,12 @@ void runSetupMode() {
               
               if (isRebootRequest) {
                 // Reboot without saving
-                Serial.println("\n=== Reboot Requested (No Save) ===");
-                Serial.println("Rebooting without saving settings...");
+#if DEBUG_LEVEL
+                if (Serial) {
+                  Serial.println("\n=== Reboot Requested (No Save) ===");
+                  Serial.println("Rebooting without saving settings...");
+                }
+#endif
                 
                 // Send response before rebooting
                 client.println("<!DOCTYPE html><html>");
@@ -230,7 +322,11 @@ void runSetupMode() {
                 
                 // Reset the ESP32
                 delay(500);
-                Serial.println("Rebooting ESP32...");
+#if DEBUG_LEVEL
+                if (Serial) {
+                  Serial.println("Rebooting ESP32...");
+                }
+#endif
                 ESP.restart();
               }
               
@@ -273,27 +369,31 @@ void runSetupMode() {
                 String stopHour = extractParam(header, "stopHour");
                 
                 // Print all received values to serial
-                Serial.println("\n=== Configuration Received ===");
-                Serial.print("OpenWeatherMap API Key: ");
-                Serial.println(apiKey.length() > 0 ? apiKey : "(empty)");
-                Serial.print("WiFi SSID: ");
-                Serial.println(ssid.length() > 0 ? ssid : "(empty)");
-                Serial.print("WiFi Password: ");
-                Serial.println(password.length() > 0 ? "***" : "(empty)");
-                Serial.print("Location: ");
-                Serial.println(location.length() > 0 ? location : "(empty)");
-                Serial.print("Units: ");
-                Serial.println(units.length() > 0 ? units : "(empty)");
-                Serial.print("Update Frequency (minutes): ");
-                Serial.println(frequency.length() > 0 ? frequency : "(empty)");
-                Serial.print("Start Updating Hour: ");
-                Serial.println(startHour.length() > 0 ? startHour : "(empty)");
-                Serial.print("Stop Updating Hour: ");
-                Serial.println(stopHour.length() > 0 ? stopHour : "(empty)");
-                Serial.println("=== End Configuration ===\n");
-                
-                // Validate and save settings
-                Serial.println("Validating and saving settings...");
+#if DEBUG_LEVEL
+                if (Serial) {
+                  Serial.println("\n=== Configuration Received ===");
+                  Serial.print("OpenWeatherMap API Key: ");
+                  Serial.println(apiKey.length() > 0 ? apiKey : "(empty)");
+                  Serial.print("WiFi SSID: ");
+                  Serial.println(ssid.length() > 0 ? ssid : "(empty)");
+                  Serial.print("WiFi Password: ");
+                  Serial.println(password.length() > 0 ? "***" : "(empty)");
+                  Serial.print("Location: ");
+                  Serial.println(location.length() > 0 ? location : "(empty)");
+                  Serial.print("Units: ");
+                  Serial.println(units.length() > 0 ? units : "(empty)");
+                  Serial.print("Update Frequency (minutes): ");
+                  Serial.println(frequency.length() > 0 ? frequency : "(empty)");
+                  Serial.print("Start Updating Hour: ");
+                  Serial.println(startHour.length() > 0 ? startHour : "(empty)");
+                  Serial.print("Stop Updating Hour: ");
+                  Serial.println(stopHour.length() > 0 ? stopHour : "(empty)");
+                  Serial.println("=== End Configuration ===\n");
+                  
+                  // Validate and save settings
+                  Serial.println("Validating and saving settings...");
+                }
+#endif
                 bool validationError = false;
                 String errorMessage = "";
                 
@@ -334,13 +434,21 @@ void runSetupMode() {
                   if (sleepDuration <= 0 || sleepDuration >= 1440) {
                     // Invalid value - set to default of 60 minutes
                     sleepDuration = 60;
-                    Serial.println("Warning: Update Frequency out of range. Setting to default value of 60 minutes.");
+#if DEBUG_LEVEL
+                    if (Serial) {
+                      Serial.println("Warning: Update Frequency out of range. Setting to default value of 60 minutes.");
+                    }
+#endif
                   }
                 } else {
                   // If no value provided, validate current value
                   if (sleepDuration <= 0 || sleepDuration >= 1440) {
                     sleepDuration = 60;
-                    Serial.println("Warning: Current Update Frequency is invalid. Setting to default value of 60 minutes.");
+#if DEBUG_LEVEL
+                    if (Serial) {
+                      Serial.println("Warning: Current Update Frequency is invalid. Setting to default value of 60 minutes.");
+                    }
+#endif
                   }
                 }
                 
@@ -384,17 +492,25 @@ void runSetupMode() {
                   if (wakeupHour >= sleepHour) {
                     // Start hour is not less than stop hour - set stopHour equal to startHour
                     sleepHour = wakeupHour;
-                    Serial.print("Warning: Start Hour (");
-                    Serial.print(wakeupHour);
-                    Serial.print(") is not less than Stop Hour. Setting Stop Hour to ");
-                    Serial.println(sleepHour);
+#if DEBUG_LEVEL
+                    if (Serial) {
+                      Serial.print("Warning: Start Hour (");
+                      Serial.print(wakeupHour);
+                      Serial.print(") is not less than Stop Hour. Setting Stop Hour to ");
+                      Serial.println(sleepHour);
+                    }
+#endif
                   }
                 }
                 
                 // If validation failed, send error response
                 if (validationError) {
-                  Serial.print("Validation error: ");
-                  Serial.println(errorMessage);
+#if DEBUG_LEVEL
+                  if (Serial) {
+                    Serial.print("Validation error: ");
+                    Serial.println(errorMessage);
+                  }
+#endif
                   client.println("<!DOCTYPE html><html>");
                   client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
                   client.println("<title>ESP Weather Setup - Error</title>");
@@ -410,7 +526,11 @@ void runSetupMode() {
                 }
                 
                 // All validation passed - save to settings structure
-                Serial.println("Validation passed. Saving to EEPROM...");
+#if DEBUG_LEVEL
+                if (Serial) {
+                  Serial.println("Validation passed. Saving to EEPROM...");
+                }
+#endif
                 
                 // Copy validated strings to settings (with length limits)
                 strncpy(settings.apikey, apiKey.c_str(), sizeof(settings.apikey) - 1);
@@ -443,7 +563,11 @@ void runSetupMode() {
                 
                 // Save settings to EEPROM
                 saveSettings();
-                Serial.println("Settings saved to EEPROM successfully.");
+#if DEBUG_LEVEL
+                if (Serial) {
+                  Serial.println("Settings saved to EEPROM successfully.");
+                }
+#endif
                 
                 // Send success response before resetting
                 client.println("<!DOCTYPE html><html>");
@@ -458,7 +582,11 @@ void runSetupMode() {
                 
                 // Reset the ESP32
                 delay(500);
-                Serial.println("Rebooting ESP32...");
+#if DEBUG_LEVEL
+                if (Serial) {
+                  Serial.println("Rebooting ESP32...");
+                }
+#endif
                 ESP.restart();
               } else {
                 // Display the HTML web page (normal form)
@@ -646,8 +774,12 @@ void runSetupMode() {
       header = "";
       // Close the connection
       client.stop();
-      Serial.println("Client disconnected.");
-      Serial.println("");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("Client disconnected.");
+        Serial.println("");
+      }
+#endif
     }
     delay(10); // Small delay to prevent watchdog issues
   }

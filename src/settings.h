@@ -3,6 +3,12 @@
 
 #include <Arduino.h>
 
+// Debug level: 0 = disable serial and all debug output, 1 = enable serial and debug output
+// Can be overridden by defining DEBUG_LEVEL before including this header
+#ifndef DEBUG_LEVEL
+#define DEBUG_LEVEL 0
+#endif
+
 /**
  * Settings structure to hold all user-configurable values.
  * Stored in EEPROM (using ESP32 Preferences) for persistence.

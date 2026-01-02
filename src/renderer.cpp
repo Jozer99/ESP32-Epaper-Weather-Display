@@ -253,7 +253,11 @@ void Nodata(int x, int y, bool IconSize, String IconName) {
 
 // Icon selection and display function (from source repo)
 void DisplayConditionsSection(int x, int y, String IconName, bool IconSize) {
-  Serial.println("Icon name: " + IconName);
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.println("Icon name: " + IconName);
+  }
+#endif
   if      (IconName == "01d" || IconName == "01n") ClearSky(x, y, IconSize, IconName);
   else if (IconName == "02d" || IconName == "02n") FewClouds(x, y, IconSize, IconName);
   else if (IconName == "03d" || IconName == "03n") ScatteredClouds(x, y, IconSize, IconName);
@@ -948,11 +952,11 @@ void drawBatteryIcon(int x, int y, uint8_t percentage, float voltage) {
   String batStr;
   if (voltage > 4.35) {
     // Battery voltage above 4.2V indicates charging
-    batStr = "Charging  " + String(voltage, 1) + "v";
-    drawString(x + 85, y - 17, batStr, LEFT, Black);
+    batStr = "Charging  " + String(voltage, 3) + "v";
+    drawString(x + 75, y - 17, batStr, LEFT, Black);
   } else {
-    batStr = String(percentage) + "%  " + String(voltage, 1) + "v";
-    drawString(x + 85, y - 13, batStr, LEFT, Black);
+    batStr = String(percentage) + "%  " + String(voltage, 3) + "v";
+    drawString(x + 75, y - 13, batStr, LEFT, Black);
   }
 }
 
@@ -1001,16 +1005,16 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr, int rs
   drawString(DISP_WIDTH / 2, barY + 5, refreshTimeStr, CENTER, Black);
   
   // Battery icon and text on right
-  // Calculate total width: icon starts at x+25, text ends at x+85+textWidth
+  // Calculate total width: icon starts at x+25, text ends at x+75+textWidth
   setFont(OpenSans8B);
   String batStr;
   if (voltage > 4.35) {
-    batStr = "Charging  " + String(voltage, 1) + "v";
+    batStr = "Charging  " + String(voltage, 3) + "v";
   } else {
-    batStr = String(percentage) + "%  " + String(voltage, 1) + "v";
+    batStr = String(percentage) + "%  " + String(voltage, 3) + "v";
   }
   uint16_t textWidth = getStringWidth(batStr);
-  int totalWidth = 85 + textWidth; // Distance from icon start (x+25) to text end
+  int totalWidth = 75 + textWidth; // Distance from icon start (x+25) to text end
   int batteryX = DISP_WIDTH - 2 - totalWidth; // Position from right edge
   int batteryY = barY + 17; // Align with time text (battery draws at y-14, time at barY)
   

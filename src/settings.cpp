@@ -44,11 +44,19 @@ void initSettings() {
   
   if (magic != SETTINGS_MAGIC) {
     // Settings don't exist or are invalid - initialize with defaults
-    Serial.println("Settings not found in EEPROM. Initializing with defaults...");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("Settings not found in EEPROM. Initializing with defaults...");
+    }
+#endif
     resetSettingsToDefaults();
   } else {
     // Settings exist - load them
-    Serial.println("Loading settings from EEPROM...");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("Loading settings from EEPROM...");
+    }
+#endif
     loadSettings();
   }
   
@@ -97,7 +105,11 @@ bool loadSettings() {
   
   preferences.end();
   
-  Serial.println("Settings loaded from EEPROM");
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.println("Settings loaded from EEPROM");
+  }
+#endif
   return true;
 }
 
@@ -123,7 +135,11 @@ void saveSettings() {
   
   preferences.end();
   
-  Serial.println("Settings saved to EEPROM");
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.println("Settings saved to EEPROM");
+  }
+#endif
 }
 
 /**
@@ -136,6 +152,11 @@ void resetSettingsToDefaults() {
   // Save to EEPROM
   saveSettings();
   
-  Serial.println("Settings reset to defaults and saved");
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.println("Settings reset to defaults and saved");
+  }
+#endif
 }
+
 

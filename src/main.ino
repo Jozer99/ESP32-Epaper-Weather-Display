@@ -11,6 +11,8 @@
  * 
  * Uses OpenWeatherMap One Call API 3.0 for weather data.
  * Time synchronization via API response (no NTP required).
+ * 
+ * Supports both ESP32 (5 Button dev kit) and ESP32-S3 (3 Button dev kit)
  */
 
 #include <Arduino.h>
@@ -31,6 +33,26 @@
 #include "setup_mode.h"
 #include "settings.h"
 
+// Platform detection
+#ifdef ESP32_S3_PLATFORM
+  #define IS_ESP32_S3 true
+#else
+  #define IS_ESP32_S3 false
+#endif
+
+#ifdef ESP32_PLATFORM
+  #define IS_ESP32 true
+#else
+  #define IS_ESP32 false
+#endif
+
+// Check for PSRAM - required for ESP32-S3
+#if IS_ESP32_S3
+  #ifndef BOARD_HAS_PSRAM
+  #error "Please enable PSRAM! PlatformIO -> board_build.psram_type = opi"
+  #endif
+#endif
+
 #define SCREEN_WIDTH   EPD_WIDTH
 #define SCREEN_HEIGHT  EPD_HEIGHT
 
@@ -45,9 +67,18 @@
 #define max_hourly_readings 48  // One Call API 3.0 provides 48 hours of hourly forecasts
 #define max_daily_readings 8    // One Call API 3.0 provides 8 days of daily forecasts
 
+// Forecast arrays - use static allocation for ESP32, heap allocation for ESP32-S3
+#if IS_ESP32_S3
+// ESP32-S3: Allocate on heap to avoid static initialization crash
+Forecast_record_type  *WxConditions = nullptr;
+Forecast_record_type  *WxHourlyForecast = nullptr;  
+Forecast_record_type  *WxDailyForecast = nullptr;
+#else
+// ESP32: Use static allocation
 Forecast_record_type  WxConditions[1];
 Forecast_record_type  WxHourlyForecast[max_hourly_readings];  // Hourly forecasts for 24-hour graph
 Forecast_record_type  WxDailyForecast[max_daily_readings];    // Daily forecasts for 5-day display
+#endif
 
 // Runtime variables (not configuration - these change during execution)
 long StartTime       = 0;  // Timestamp when device woke up
@@ -106,9 +137,18 @@ void BeginSleep() {
   SleepTimer = secondsUntilNext + Delta; // Add compensation offset
   
   esp_sleep_enable_timer_wakeup(SleepTimer * 1000000LL); // Convert to microseconds
-  Serial.println("Awake for : " + String((millis() - StartTime) / 1000.0, 3) + "-secs");
-  Serial.println("Entering " + String(SleepTimer) + " (secs) of sleep time");
-  Serial.println("Starting deep-sleep period...");
+  
+  // Serial output (non-blocking, only if available)
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.println("Awake for : " + String((millis() - StartTime) / 1000.0, 3) + "-secs");
+    Serial.println("Entering " + String(SleepTimer) + " (secs) of sleep time");
+    Serial.println("Starting deep-sleep period...");
+    Serial.flush();
+  }
+#endif
+  delay(50);  // Brief delay
+  
   esp_deep_sleep_start();
 }
 
@@ -131,20 +171,24 @@ void SetRTCTimeFromAPI(time_t apiTime, int timezoneOffset) {
   // Store timezone offset globally for manual conversion
   globalTimezoneOffset = timezoneOffset;
   
-  Serial.println("RTC set from API time (UTC)");
-  Serial.print("Timezone offset: ");
-  Serial.print(timezoneOffset / 3600.0);
-  Serial.println(" hours");
-  
-  // Verify time calculation
-  time_t now = time(NULL);
-  struct tm *utc_tm = gmtime(&now);
-  time_t local_time = now + timezoneOffset;
-  struct tm *local_tm = gmtime(&local_time);
-  Serial.print("UTC time: ");
-  Serial.println(utc_tm, "%a %b %d %Y   %H:%M:%S");
-  Serial.print("Local time: ");
-  Serial.println(local_tm, "%a %b %d %Y   %H:%M:%S");
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.println("RTC set from API time (UTC)");
+    Serial.print("Timezone offset: ");
+    Serial.print(timezoneOffset / 3600.0);
+    Serial.println(" hours");
+    
+    // Verify time calculation
+    time_t now = time(NULL);
+    struct tm *utc_tm = gmtime(&now);
+    time_t local_time = now + timezoneOffset;
+    struct tm *local_tm = gmtime(&local_time);
+    Serial.print("UTC time: ");
+    Serial.println(utc_tm, "%a %b %d %Y   %H:%M:%S");
+    Serial.print("Local time: ");
+    Serial.println(local_tm, "%a %b %d %Y   %H:%M:%S");
+  }
+#endif
 }
 
 /**
@@ -154,14 +198,22 @@ void SetRTCTimeFromAPI(time_t apiTime, int timezoneOffset) {
  * @return WiFi status (WL_CONNECTED on success)
  */
 uint8_t StartWiFi() {
-  Serial.println("\r\nWiFi Connecting to: " + String(settings.ssid));
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.println("\r\nWiFi Connecting to: " + String(settings.ssid));
+  }
+#endif
   IPAddress dns(8, 8, 8, 8); // Google DNS
   WiFi.disconnect();
   WiFi.mode(WIFI_STA); // Station mode (client)
   WiFi.begin(settings.ssid, settings.password);
   
   if (WiFi.waitForConnectResult() != WL_CONNECTED) {
-    Serial.printf("WiFi connection failed, retrying...!\n");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.printf("WiFi connection failed, retrying...!\n");
+    }
+#endif
     WiFi.disconnect(true); // Clear stored credentials
     delay(500);
     WiFi.begin(settings.ssid, settings.password);
@@ -169,11 +221,19 @@ uint8_t StartWiFi() {
   
   if (WiFi.waitForConnectResult() == WL_CONNECTED) {
     wifi_signal = WiFi.RSSI(); // Store signal strength before WiFi is turned off
-    Serial.println("WiFi connected at: " + WiFi.localIP().toString());
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("WiFi connected at: " + WiFi.localIP().toString());
+    }
+#endif
   }
   else {
     wifi_signal = 0;
-    Serial.println("WiFi connection *** FAILED ***");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("WiFi connection *** FAILED ***");
+    }
+#endif
   }
   return WiFi.status();
 }
@@ -184,7 +244,11 @@ uint8_t StartWiFi() {
 void StopWiFi() {
   WiFi.disconnect();
   WiFi.mode(WIFI_OFF);
-  Serial.println("WiFi switched Off");
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.println("WiFi switched Off");
+  }
+#endif
 }
 
 /**
@@ -193,19 +257,70 @@ void StopWiFi() {
  */
 void InitialiseSystem() {
   StartTime = millis();
-  Serial.begin(115200);
-  while (!Serial); // Wait for serial monitor
-  Serial.println(String(__FILE__) + "\nStarting...");
   
-  // Initialize settings system (load from EEPROM or create defaults)
+  // Initialize Serial (non-blocking - works without serial connection)
+  // Don't wait for serial connection - proceed immediately
+#if DEBUG_LEVEL
+  Serial.begin(115200);
+#if IS_ESP32_S3
+  // ESP32-S3 USB CDC needs time to initialize - delay prevents hanging if no terminal connected
+  delay(1000);
+#endif
+  if (Serial) {
+    Serial.println(String(__FILE__) + "\nStarting...");
+  }
+#endif
+  
+#if IS_ESP32_S3
+  // ESP32-S3: Check PSRAM
+  if (ESP.getPsramSize() == 0) {
+    // PSRAM required - enter infinite loop (will retry on next boot)
+    // Don't use Serial here as it may not be available
+    while(1) { delay(1000); }
+  }
+  
+  // Allocate framebuffer
+  size_t fb_size = EPD_WIDTH * EPD_HEIGHT / 2;
+  framebuffer = (uint8_t *)ps_calloc(1, fb_size);
+  if (!framebuffer) {
+    // Framebuffer allocation failed - enter infinite loop (will retry on next boot)
+    while(1) { delay(1000); }
+  }
+  memset(framebuffer, 0xFF, fb_size);
+  
+  // Initialize settings
   initSettings();
   
+  // Initialize display
+  epd_init();
+  
+  // Allocate forecast arrays on heap (avoid static initialization crash)
+  WxConditions = new Forecast_record_type[1];
+  WxHourlyForecast = new Forecast_record_type[max_hourly_readings];
+  WxDailyForecast = new Forecast_record_type[max_daily_readings];
+  
+  if (!WxConditions || !WxHourlyForecast || !WxDailyForecast) {
+    // Forecast array allocation failed - enter infinite loop (will retry on next boot)
+    while(1) { delay(1000); }
+  }
+#else
+  // ESP32: Initialize settings first
+  initSettings();
+  
+  // Initialize display
   epd_init();
   
   // Allocate framebuffer: 4-bit grayscale = 2 pixels per byte
   framebuffer = (uint8_t *)ps_calloc(sizeof(uint8_t), EPD_WIDTH * EPD_HEIGHT / 2);
-  if (!framebuffer) Serial.println("Memory alloc failed!");
+  if (!framebuffer) {
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("Memory alloc failed!");
+    }
+#endif
+  }
   memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2); // Fill with white
+#endif
 }
 
 void loop() {
@@ -213,52 +328,142 @@ void loop() {
 }
 
 /**
- * Main setup function - runs once on wake from deep sleep.
+ * Check if setup mode should be activated based on button press(es).
  * 
- * Flow:
- * 1. Initialize system (serial, display, framebuffer)
- * 2. Check battery voltage - if low, show warning and sleep
- * 3. Connect to WiFi
- * 4. Check RTC and wake hours - fetch weather if within wake hours or RTC not set
- * 5. Parse weather data and set RTC time from API
- * 6. Draw weather display to framebuffer and update e-paper screen
- * 7. Enter deep sleep until next wake time
+ * ESP32 (5 Button dev kit): Buttons 2 (GPIO 35) and 4 (GPIO 39) must both be pressed
+ * ESP32-S3 (3 Button dev kit): Single button (GPIO 21) must be pressed
+ * 
+ * @return true if setup mode should be activated
  */
-void setup() {
-  InitialiseSystem();
+bool checkSetupModeEntry() {
+#if IS_ESP32_S3
+  // ESP32-S3: Single button on GPIO 21
+  pinMode(21, INPUT_PULLUP);
+  delay(50);  // Brief stabilization delay
   
-  // Read and print status of the three buttons (GPIO 34, 35, 39)
-  // Configure pins with internal pull-up resistors enabled
-  pinMode(34, INPUT_PULLUP);    // Button 3
+  // Check if button is pressed during boot (sample multiple times)
+  bool buttonPressed = false;
+  for (int i = 0; i < 5; i++) {
+    if (digitalRead(21) == LOW) {
+      buttonPressed = true;
+      break;
+    }
+    delay(50);
+  }
+  
+  return buttonPressed;
+#else
+  // ESP32: Buttons 2 (GPIO 35) and 4 (GPIO 39) must both be pressed
+  pinMode(34, INPUT_PULLUP);    // Button 3 (for reference)
   pinMode(35, INPUT_PULLUP);    // Button 2
   pinMode(39, INPUT_PULLUP);    // Button 4
   
-  Serial.println("\n=== Button Status ===");
-  Serial.printf("Button 2 (GPIO 35): %s\n", digitalRead(35) == HIGH ? "HIGH" : "LOW");
-  Serial.printf("Button 3 (GPIO 34): %s\n", digitalRead(34) == HIGH ? "HIGH" : "LOW");
-  Serial.printf("Button 4 (GPIO 39): %s\n", digitalRead(39) == HIGH ? "HIGH" : "LOW");
-  Serial.println("=== End Button Status ===\n");
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.println("\n=== Button Status ===");
+    Serial.printf("Button 2 (GPIO 35): %s\n", digitalRead(35) == HIGH ? "HIGH" : "LOW");
+    Serial.printf("Button 3 (GPIO 34): %s\n", digitalRead(34) == HIGH ? "HIGH" : "LOW");
+    Serial.printf("Button 4 (GPIO 39): %s\n", digitalRead(39) == HIGH ? "HIGH" : "LOW");
+    Serial.println("=== End Button Status ===\n");
+  }
+#endif
   
   // Check if buttons 2 and 4 are both pressed to enter setup mode
   // With pull-up resistors, pressed buttons read LOW
   bool button2Pressed = (digitalRead(35) == LOW);
   bool button4Pressed = (digitalRead(39) == LOW);
   
-  if (button2Pressed && button4Pressed) {
+  return (button2Pressed && button4Pressed);
+#endif
+}
+
+/**
+ * Main setup function - runs once on wake from deep sleep.
+ * 
+ * Flow:
+ * 1. Initialize serial (non-blocking)
+ * 2. Check for setup mode entry button combo
+ * 3. Initialize system (display, framebuffer)
+ * 4. Check battery voltage - if low, show warning and sleep
+ * 5. Connect to WiFi
+ * 6. Check RTC and wake hours - fetch weather if within wake hours or RTC not set
+ * 7. Parse weather data and set RTC time from API
+ * 8. Draw weather display to framebuffer and update e-paper screen
+ * 9. Enter deep sleep until next wake time
+ */
+void setup() {
+  // Initialize Serial (non-blocking - works without serial connection)
+  // Don't call Serial.end() - just begin it once, it will work if USB is connected
+#if DEBUG_LEVEL
+  Serial.begin(115200);
+#if IS_ESP32_S3
+  // ESP32-S3 USB CDC needs time to initialize - delay prevents hanging if no terminal connected
+  delay(1000);
+#endif
+  // Don't wait for serial connection - proceed immediately
+#endif
+  
+  // Check for setup mode entry early - before heavy initialization
+  if (checkSetupModeEntry()) {
     // Enter setup mode
-    Serial.println("Setup mode activated (Buttons 2 and 4 pressed)");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("Setup mode activated");
+    }
+#endif
     
+#if IS_ESP32_S3
+    // ESP32-S3: Initialize minimal system for setup mode
+    StartTime = millis();
+    
+    // Check PSRAM
+    if (ESP.getPsramSize() == 0) {
+      while(1) { delay(1000); }
+    }
+    
+    // Allocate framebuffer
+    size_t fb_size = EPD_WIDTH * EPD_HEIGHT / 2;
+    framebuffer = (uint8_t *)ps_calloc(1, fb_size);
+    if (!framebuffer) {
+      while(1) { delay(1000); }
+    }
+    memset(framebuffer, 0xFF, fb_size);
+    
+    // Initialize settings (needed for setup mode)
+    initSettings();
+    
+    // Initialize display
+    epd_init();
+    
+    // Allocate forecast arrays (needed for rendering)
+    WxConditions = new Forecast_record_type[1];
+    WxHourlyForecast = new Forecast_record_type[max_hourly_readings];
+    WxDailyForecast = new Forecast_record_type[max_daily_readings];
+#else
+    // ESP32: Initialize system normally
+    InitialiseSystem();
+#endif
+    
+    // Show setup mode screen
     epd_poweron();
     epd_clear();
     drawSetupModeScreen();
     epd_draw_grayscale_image(epd_full_screen(), framebuffer);
     epd_poweroff_all();
     
-    Serial.println("Setup mode screen displayed. Starting WiFi AP and web server...");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("Setup mode screen displayed. Starting WiFi AP and web server...");
+    }
+#endif
+    
     // Run setup mode with WiFi AP and web server
     runSetupMode();
     return; // Exit setup() early
   }
+  
+  // Normal boot - initialize system
+  InitialiseSystem();
   
   // Check battery voltage first - if low, show message once and sleep
   uint32_t batVoltage = readBatteryVoltage();
@@ -268,8 +473,12 @@ void setup() {
     // Battery is low (<= 3.2V)
     if (!lowBatteryScreenShown) {
       // Show low battery screen once
-      Serial.println("Low battery detected: " + String(voltage, 2) + "V");
-      Serial.println("Displaying low battery screen...");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("Low battery detected: " + String(voltage, 2) + "V");
+        Serial.println("Displaying low battery screen...");
+      }
+#endif
       
       epd_poweron();
       epd_clear();
@@ -279,10 +488,18 @@ void setup() {
       
       // Mark that we've shown the screen
       lowBatteryScreenShown = true;
-      Serial.println("Low battery screen displayed. Going to sleep...");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("Low battery screen displayed. Going to sleep...");
+      }
+#endif
     } else {
       // Already shown, just sleep without redrawing
-      Serial.println("Low battery screen already shown. Going to sleep...");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("Low battery screen already shown. Going to sleep...");
+      }
+#endif
     }
     
     // Go to sleep - will wake up again later to check battery
@@ -302,7 +519,11 @@ void setup() {
     
     if (locationResult == 1) {
       // API key is invalid - show error screen
-      Serial.println("OpenWeatherMap API key is invalid");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("OpenWeatherMap API key is invalid");
+      }
+#endif
       StopWiFi();
       epd_poweron();
       epd_clear();
@@ -311,12 +532,20 @@ void setup() {
       epd_poweroff_all();
       
       // Go to sleep - user needs to enter setup mode to fix API key
-      Serial.println("Entering deep sleep due to invalid API key...");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("Entering deep sleep due to invalid API key...");
+      }
+#endif
       BeginSleep();
       return; // Exit setup() early
     } else if (locationResult == 2) {
       // Location is invalid and geocoding failed - show error screen
-      Serial.println("Location validation failed. Displaying error screen...");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("Location validation failed. Displaying error screen...");
+      }
+#endif
       StopWiFi();
       epd_poweron();
       epd_clear();
@@ -325,7 +554,11 @@ void setup() {
       epd_poweroff_all();
       
       // Go to sleep - user needs to enter setup mode to fix location
-      Serial.println("Entering deep sleep due to invalid location...");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("Entering deep sleep due to invalid location...");
+      }
+#endif
       BeginSleep();
       return; // Exit setup() early
     }
@@ -354,22 +587,34 @@ void setup() {
         }
       }
       
-      Serial.print("Current hour: ");
-      Serial.println(CurrentHour);
-      Serial.print("Wake hours: ");
-      Serial.print(settings.WakeupHour);
-      Serial.print(" - ");
-      Serial.println(settings.SleepHour);
-      Serial.print("WakeUp status: ");
-      Serial.println(WakeUp ? "true" : "false");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.print("Current hour: ");
+        Serial.println(CurrentHour);
+        Serial.print("Wake hours: ");
+        Serial.print(settings.WakeupHour);
+        Serial.print(" - ");
+        Serial.println(settings.SleepHour);
+        Serial.print("WakeUp status: ");
+        Serial.println(WakeUp ? "true" : "false");
+      }
+#endif
     } else {
       // RTC not initialized - always fetch weather to set time from API
-      Serial.println("RTC not set, fetching weather to set time from API...");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("RTC not set, fetching weather to set time from API...");
+      }
+#endif
       WakeUp = true;
     }
     
     if (WakeUp) {
-      Serial.println("Within wake hours, fetching weather...");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("Within wake hours, fetching weather...");
+      }
+#endif
       byte Attempts = 1;
       int weatherResult = 2; // 0 = success, 1 = API key invalid, 2 = other error
       WiFiClient client;
@@ -379,7 +624,11 @@ void setup() {
         }
         Attempts++;
       }
-      Serial.println("Received weather data...");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("Received weather data...");
+      }
+#endif
       if (weatherResult == 0) {
         // Update time strings after RTC was set from API
         UpdateLocalTime();
@@ -388,17 +637,33 @@ void setup() {
         epd_poweron();
         epd_clear();
         
-        Serial.println("Drawing weather display...");
+#if DEBUG_LEVEL
+        if (Serial) {
+          Serial.println("Drawing weather display...");
+        }
+#endif
         DisplayWeather();
         
         // Update display - render framebuffer to screen
-        Serial.println("Updating display...");
+#if DEBUG_LEVEL
+        if (Serial) {
+          Serial.println("Updating display...");
+        }
+#endif
         epd_draw_grayscale_image(epd_full_screen(), framebuffer);
         epd_poweroff_all();
-        Serial.println("Display updated successfully");
+#if DEBUG_LEVEL
+        if (Serial) {
+          Serial.println("Display updated successfully");
+        }
+#endif
       } else if (weatherResult == 1) {
         // API key is invalid - show error screen
-        Serial.println("OpenWeatherMap API key is invalid");
+#if DEBUG_LEVEL
+        if (Serial) {
+          Serial.println("OpenWeatherMap API key is invalid");
+        }
+#endif
         StopWiFi();
         epd_poweron();
         epd_clear();
@@ -407,7 +672,11 @@ void setup() {
         epd_poweroff_all();
       } else {
         // Other error - show generic error message
-        Serial.println("Failed to receive weather data");
+#if DEBUG_LEVEL
+        if (Serial) {
+          Serial.println("Failed to receive weather data");
+        }
+#endif
         epd_poweron();
         epd_clear();
         drawWiFiErrorScreen(); // Reuse WiFi error screen for generic errors
@@ -417,14 +686,22 @@ void setup() {
     } else {
       // Outside wake hours - skip weather fetch and display update to save power
       // Leave current display image in place and go back to sleep
-      Serial.println("Outside wake hours, skipping weather fetch and display update");
+#if DEBUG_LEVEL
+      if (Serial) {
+        Serial.println("Outside wake hours, skipping weather fetch and display update");
+      }
+#endif
       StopWiFi();
       // No EPD operations - current image remains on screen
     }
   }
   else {
-    Serial.println("WiFi or time setup failed");
-    Serial.println("Displaying WiFi connection error...");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("WiFi or time setup failed");
+      Serial.println("Displaying WiFi connection error...");
+    }
+#endif
     
     epd_poweron();
     epd_clear();
@@ -440,6 +717,13 @@ void setup() {
  * Layout includes: location/date, current conditions, 5-day forecast, 24-hour graph, and status bar.
  */
 void DisplayWeather() {
+#if IS_ESP32_S3
+  // ESP32-S3: Check that arrays are allocated
+  if (!WxConditions || !WxHourlyForecast || !WxDailyForecast) {
+    return;
+  }
+#endif
+  
   // Clear framebuffer to white
   memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
   
@@ -489,16 +773,28 @@ String ConvertUnixTime(int unix_time) {
  * @return true if parsing successful, false on error
  */
 bool DecodeWeather(WiFiClient& json) {
-  Serial.print(F("\nDeserializing One Call API 3.0 json... "));
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.print(F("\nDeserializing One Call API 3.0 json... "));
+  }
+#endif
   auto doc = DynamicJsonDocument(64 * 1024);
   DeserializationError error = deserializeJson(doc, json);
   if (error) {
-    Serial.print(F("deserializeJson() failed: "));
-    Serial.println(error.c_str());
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.c_str());
+    }
+#endif
     return false;
   }
   JsonObject root = doc.as<JsonObject>();
-  Serial.println(" Decoding One Call API 3.0 data");
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.println(" Decoding One Call API 3.0 data");
+  }
+#endif
   
   // Parse current weather conditions
   JsonObject current = root["current"];
@@ -537,7 +833,11 @@ bool DecodeWeather(WiFiClient& json) {
   
   // Parse hourly forecasts (48 hours) - used for 24-hour graph
   JsonArray hourly = root["hourly"];
-  Serial.print(F("\nReceiving Hourly Forecast - "));
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.print(F("\nReceiving Hourly Forecast - "));
+  }
+#endif
   for (byte r = 0; r < max_hourly_readings && r < hourly.size(); r++) {
     WxHourlyForecast[r].Dt          = hourly[r]["dt"].as<int>();
     WxHourlyForecast[r].Temperature = hourly[r]["temp"].as<float>();
@@ -563,11 +863,19 @@ bool DecodeWeather(WiFiClient& json) {
       WxHourlyForecast[r].Snowfall = hourly[r]["snow"]["1h"].as<float>();
     }
   }
-  Serial.println(String(hourly.size()) + " periods received");
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.println(String(hourly.size()) + " periods received");
+  }
+#endif
   
   // Parse daily forecasts (8 days) - used for 5-day forecast display
   JsonArray daily = root["daily"];
-  Serial.print(F("\nReceiving Daily Forecast - "));
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.print(F("\nReceiving Daily Forecast - "));
+  }
+#endif
   for (byte r = 0; r < max_daily_readings && r < daily.size(); r++) {
     JsonObject day = daily[r];
     JsonObject temp = day["temp"]; // Daily forecast has temp object with min/max/day/night
@@ -598,7 +906,11 @@ bool DecodeWeather(WiFiClient& json) {
       WxDailyForecast[r].Snowfall = day["snow"].as<float>();
     }
   }
-  Serial.println(String(daily.size()) + " days received");
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.println(String(daily.size()) + " days received");
+  }
+#endif
   
   // Calculate pressure trend: compare today's pressure with tomorrow's
   // "+" = rising, "-" = falling, "=" = stable
@@ -632,9 +944,13 @@ int obtainWeatherData(WiFiClient & client) {
                "&units=" + units + "&lang=" + String(settings.Language);
   
   const char* server = "api.openweathermap.org";
-  Serial.print("Connecting: ");
-  Serial.print(String(server) + uri);
-  Serial.println();
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.print("Connecting: ");
+    Serial.print(String(server) + uri);
+    Serial.println();
+  }
+#endif
   
   http.begin(client, server, 80, uri); // HTTP port 80 (use 443 + WiFiClientSecure for HTTPS)
   int httpCode = http.GET();
@@ -649,7 +965,11 @@ int obtainWeatherData(WiFiClient & client) {
     return 0; // Success
   }
   else {
-    Serial.printf("connection failed, http error code %i %s\n", httpCode, http.errorToString(httpCode));
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.printf("connection failed, http error code %i %s\n", httpCode, http.errorToString(httpCode));
+    }
+#endif
     client.stop();
     http.end();
     
@@ -670,7 +990,11 @@ int obtainWeatherData(WiFiClient & client) {
 boolean UpdateLocalTime() {
   time_t now = time(NULL);
   if (now < 946684800) { // Unix timestamp for 2000-01-01 - RTC not initialized
-    Serial.println("RTC not set yet, waiting for API time...");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("RTC not set yet, waiting for API time...");
+    }
+#endif
     return false;
   }
   
@@ -679,7 +1003,11 @@ boolean UpdateLocalTime() {
   time_t local_time = now + globalTimezoneOffset;
   struct tm *timeinfo = gmtime(&local_time);  // Use gmtime since we've already applied offset
   if (timeinfo == NULL) {
-    Serial.println("Failed to get time from RTC");
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.println("Failed to get time from RTC");
+    }
+#endif
     return false;
   }
   
@@ -687,7 +1015,11 @@ boolean UpdateLocalTime() {
   CurrentHour = timeinfo->tm_hour;
   CurrentMin  = timeinfo->tm_min;
   CurrentSec  = timeinfo->tm_sec;
-  Serial.println(timeinfo, "%a %b %d %Y   %H:%M:%S");
+#if DEBUG_LEVEL
+  if (Serial) {
+    Serial.println(timeinfo, "%a %b %d %Y   %H:%M:%S");
+  }
+#endif
   
   // Format date string: "Saturday, November 22" (full names, no year)
   char weekday_full[20], month_full[20], day_output[30], time_output[30], update_time[30];
@@ -711,12 +1043,53 @@ boolean UpdateLocalTime() {
 
 /**
  * Read battery voltage from ADC pin using ESP32 ADC calibration.
- * LilyGo T5 4.7 uses GPIO36 (ADC1_CH0) with a voltage divider circuit.
+ * 
+ * ESP32 (5 Button dev kit): GPIO36 (ADC1_CH0) with voltage divider (6.566x scaling)
+ * ESP32-S3 (3 Button dev kit): GPIO14 with voltage divider (0.5x scaling, then 2x multiplier)
+ * 
  * Uses eFuse Vref calibration for accurate voltage readings.
  * 
  * @return Battery voltage in millivolts, or 0 if reading unavailable
  */
 uint32_t readBatteryVoltage() {
+#if IS_ESP32_S3
+  // ESP32-S3: GPIO14 with 0.5x voltage divider, then 2x multiplier, plus calibration
+  const int batteryPin = 14;  // GPIO14 = Battery ADC on ESP32-S3
+  
+  // Calibration multiplier - adjust based on actual vs measured voltage
+  // Calculated from: actual_voltage / measured_voltage
+  // Example: if actual is 3.952V and measured is 3.4V, multiplier = 1.162
+  const float CALIBRATION_MULTIPLIER = 1.162f;
+  
+  // Characterize ADC with calibration values
+  // ESP32-S3 supports up to ADC_ATTEN_DB_11 (not ADC_ATTEN_DB_12 like ESP32)
+  esp_adc_cal_characteristics_t adc_chars;
+  esp_adc_cal_value_t val_type = esp_adc_cal_characterize(
+    ADC_UNIT_1, 
+    ADC_ATTEN_DB_11,  // ESP32-S3 maximum attenuation (3.0V full scale)
+    ADC_WIDTH_BIT_12, 
+    1100,  // Default Vref in mV
+    &adc_chars
+  );
+  
+  // Use eFuse Vref if available (more accurate than default)
+  if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {
+    vref = adc_chars.vref;
+  }
+  
+  // Read ADC value and convert to voltage using calibrated reference
+  // Voltage divider scales by 0.5x, so battery voltage = ADC voltage * 2
+  // For ATTEN_DB_11 on ESP32-S3, full scale is approximately 3.0V
+  // Formula: adcVoltage = (rawValue / 4095.0) * 3.0V * (vref / 1100.0)
+  // Then: batteryVoltage = adcVoltage * 2.0 (to account for 0.5x divider)
+  int rawValue = analogRead(batteryPin);
+  float adcVoltage = (rawValue / 4095.0) * 3.0 * (vref / 1100.0);
+  float voltage = adcVoltage * 2.0;  // Account for 0.5x voltage divider
+  
+  // Apply calibration multiplier to correct for hardware variations
+  voltage = voltage * CALIBRATION_MULTIPLIER;
+#else
+  // ESP32: GPIO36 with 6.566x scaling
   const int batteryPin = 36;  // GPIO36 = ADC1_CH0 on ESP32
   
   // Characterize ADC with calibration values
@@ -731,13 +1104,18 @@ uint32_t readBatteryVoltage() {
   
   // Use eFuse Vref if available (more accurate than default)
   if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {
-    Serial.printf("eFuse Vref:%u mV\n", adc_chars.vref);
+#if DEBUG_LEVEL
+    if (Serial) {
+      Serial.printf("eFuse Vref:%u mV\n", adc_chars.vref);
+    }
+#endif
     vref = adc_chars.vref;
   }
   
   // Read ADC value and convert to voltage using calibrated reference
   // Formula: voltage = (rawValue / 4096.0) * 6.566 * (vref / 1000.0)
   float voltage = analogRead(batteryPin) / 4096.0 * 6.566 * (vref / 1000.0);
+#endif
   
   if (voltage <= 1.0) {
     // Voltage too low indicates battery monitoring hardware not available
