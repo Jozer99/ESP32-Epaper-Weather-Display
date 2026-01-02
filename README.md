@@ -11,23 +11,33 @@ Which seems no longer to exist, was the first developer of a weather display for
 Served as aesethic inspiration, although I do not believe I borrowed a single line of code from this project, it is worthy of mention.  </li>
 </ul>
 
-My code is user friendly in two ways:
+My code is user friendly in three ways:
 1.  The code can be flashed unmodified to the ESP32 platform.  User settings can be changed once the code is installed, rather than requiring modification of the code in the IDE.
 2.  I personally find the simplified display of my project provides just the right amount of information about the current and upcoming weather, rather than too much or too little.
+3.  The code can be flashed unmodified to the ESP32 platform. User settings can be changed once the code is installed, rather than requiring modification of the code in the IDE.
+
+I personally find the simplified display of my project provides just the right amount of information about the current and upcoming weather, rather than too much or too little.
+
+The project works on both the older 5 button (ESP32 based) and newer 3 button (ESP32-S3 based) Lilygo T5 4.7 EPD development kits.
 
 ![Normal Mode](https://github.com/user-attachments/assets/1c1da522-2919-43f1-91f5-a046dfe3f83b)
 
 <h1>Installation</h1>
-This code can be flashed to the the Lilygo module without modification.  It should be flashed using PlatformIO or compatible platform (such as Visual Studio Code with the PlatformIO plugin).  The included configuration file means that all that is required is to clone the git repo, load up the code in your development environment, plug in the Lilygo board by USB, and press the "Upload" button.  
+This code can be flashed to the the Lilygo module without modification. It should be flashed using PlatformIO or compatible platform (such as Visual Studio Code with the PlatformIO plugin). The included configuration file means that all that is required is to clone the git repo, load up the code in your development environment, plug in the Lilygo board by USB, and press the "Upload" button.  The same code has been adapted to work with both the five button and three button T5 4.7 EPD development kits  All the user has to do is select the appropriate target before building and uploading in PlatformIO:
+
+1.  On the bottom status bar of Visual Studio code, click the "Project Environment" icon, which should cause a drop down to appear near the top of the screen.  
+2.  Select env:esp32dev for the older 5 button kit, or env:T5-ePaper-S3 for the newer 3 button model.  
+3.  On the development board, hold down the "boot" button and tap the reset button.  This puts the development kit into programming mode.  See the illustration below for which buttons to press.  
+4.  In Visual Studio, on the bottom status bar, click the right pointing arrow to build and upload the code.
+
+<img width="2816" height="1388" alt="Button Layout" src="https://github.com/user-attachments/assets/1ed8b58d-16c6-4a16-8521-612ca1250199" />
 
 <h1>Use</h1>
-Once installed, the weather display must be configured.  This is done by putting the module into "setup mode" by pressing a special combination of buttons.  I recommend doing this while the module is fully charged (if it has a battery installed) or while it is plugged into USB power, as setup mode has considerable power draw due to wifi.  
+Once installed, the weather display must be configured. This is done by putting the module into "setup mode" by pressing a special combination of buttons. I recommend doing this while the module is fully charged (if it has a battery installed) or while it is plugged into USB power, as setup mode has considerable power draw due to wifi.
 
+On the old 5 button model, hold buttons 3 and 5 while tapping button 1 briefly. On the newer 3 button model, hold button 1 while tapping button 3 briefly.  After a few seconds, the unit will boot into setup mode and display directions on screen. All buttons can be released at this point.
 
-To enter setup mode, hold buttons 3 and 5 while tapping button 1 briefly.  After a few seconds, the unit will boot into setup mode and display directions on screen.  All buttons can be released at this point.  
-<img width="1187" height="1000" alt="Buttons" src="https://github.com/user-attachments/assets/f9a20d47-d0b0-4860-8013-18b4a0e16261" />
-
-During setup mode, the unit acts as a Wifi Access Point with the SSID "ESP Weather Station".  Connect to this access point with a computer, tablet, or smartphone, and go to the URL <b>192.168.4.1</b> in a web browser.  This will display the configuration page where you can fill in the correct settings:
+During setup mode, the unit acts as a Wifi Access Point with the SSID "ESP Weather Station". Connect to this access point with a computer, tablet, or smartphone, and go to the URL 192.168.4.1 in a web browser. This will display the configuration page where you can fill in the correct settings:
 
 ![Setup Mode](https://github.com/user-attachments/assets/eb291f30-7753-4fa0-aff7-e5e370bb9f7d)
 
@@ -55,10 +65,9 @@ This code is released under GPL v3.0, as were the projects upon which it is base
 This code is by no means finished.  Here are a list of things I would like to address in the future:
 <ul>
 <li>Getting an API key is a bit of a steep ask for users, it would be great to find a weather source that does not require registration and limited API keys</li>
-<li>The battery percentage tracking code is OK, not great.  The voltage detection seems to be pretty good on my unit, but the percent reading leaves something to be desired.  Fully fixing this will require a deep dive into lithium battery technology.  </li>
-<li>This code was written for the earlier "V3" revision of the T5 4.7 inch development kit.  Judging from online pictures, Lilygo has released a newer revision of the kit, mainly distinguishable by having only three hardware buttons instead of five.  I have not tested the code on the newer version (as I do not have one) but I suspect some minor modifications will be required in order to make it work properly.</li>
-<li>Optimization and clean up; I cut down on the amount of internet requests the unit makes compared to previous projects, but I suspect further optimization is possible.  Almost all power consumption occurs while the unit is awake for an update, so optimizing that code more would result in increased battery life.</li>
+<li>The battery percentage tracking code is OK, not great. The voltage detection seems to be pretty good on my unit, but the percent reading leaves something to be desired. Fully fixing this will require a deep dive into lithium battery technology.  Since these are kits and everyone will be using a different battery, I doubt there is a universal solution which will offer good performance for everyone.  </li>
 <li>Fonts - This project seems to use standard Adafruit GFX style fonts, but trying to display any fonts other than the ones included with the original project results in crashing.  It would be nice to get to the bottom of this so that I could lighten up the font weights a bit, and perhaps make a few important pieces of information larger on screen than is currently possible.</li>
+<li>Fonts - This project seems to use standard Adafruit GFX style fonts, but trying to display any fonts other than the ones included with the original project results in crashing. It would be nice to get to the bottom of this so that I could lighten up the font weights a bit, and perhaps make a few important pieces of information larger on screen than is currently possible.</li>
 </ul>
 
 See my blog post here: https://www.jozerworx.com/esp32-epaper-weather-station/
